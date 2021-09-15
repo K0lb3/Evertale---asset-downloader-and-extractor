@@ -69,12 +69,10 @@ def update_assets(path):
     AssetBatchConverter.DST = path
     for name, detail in hashs_online.items():
         if not isinstance(detail, dict):
-            pass
+            continue
         hash = detail["hash"]
-
-        #fp = os.path.join(path, name)
-
-        if hashs_local.get(name) != hash:
+        
+        if hashs_local.get(name,{}).get("hash","") != hash:
             print(name)
             data = download_asset(name).content
             AssetBatchConverter.extract_assets(data)
@@ -83,8 +81,6 @@ def update_assets(path):
     if update:
         save_json(hashs_fp, hashs_online)
 
-def extract_asset(fp, data):
-    pass
 
 if __name__ == "__main__":
     main()
