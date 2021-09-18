@@ -1,39 +1,51 @@
 import os
 import UnityPy
-from collections import Counter
+from PIL import Image
 import json
 
 TYPES = [
-    # Images
-    'Sprite',
-    'Texture2D',
     # Text (filish)
-    'TextAsset',
-    'Shader',
-    'MonoBehaviour',
-    'Mesh'
+    "TextAsset",
+    "Shader",
+    "MonoBehaviour",
+    "Mesh"
     # Font
-    'Font',
+    "Font",
     # Audio
-    'AudioClip',
+    "AudioClip",
+    # Images
+    "Sprite",
+    "Texture2D",
+    # Specific for this game
+    "GameObject",
 ]
 
 ROOT = os.path.dirname(os.path.realpath(__file__))
 DST = os.path.join(ROOT, "extracted")
-IGNOR_DIR_COUNT=2
+IGNOR_DIR_COUNT = 2
+
 
 def extract_assets(src):
     # load source
     env = UnityPy.load(src)
 
-    for fp, obj in env.container.items():
+    for fp, obj in sorted(
+        env.container.items(),
+        key=lambda item: TYPES.index(item[1].type.name)
+        if item[1].type.name in TYPES
+        else 999,
+    ):
+        if not fp.endswith(".prefab"):
+            continue
         export_obj(obj, os.path.join(DST, *fp.split("/")[IGNOR_DIR_COUNT:]), False)
+
 
 def export_obj(obj, fp: str, append_name: bool = False) -> list:
     if obj.type not in TYPES:
         return []
 
     data = obj.read()
+
     if append_name:
         fp = os.path.join(fp, data.name)
 
@@ -41,10 +53,18 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
     os.makedirs(os.path.dirname(fp), exist_ok=True)
 
     # streamlineable types
+    if obj.type == "GameObject":
+        for component in data.get("m_Components", []):
+            if component.type == "MonoBehaviour":
+                component = component.read()
+                texture = component.get("m_Texture", None)
+                if texture:
+                    return export_obj(texture, f"{fp}_tex")
+
     export = None
-    if obj.type == 'TextAsset':
+    if obj.type == "TextAsset":
         if not extension:
-            extension = '.txt'
+            extension = ".txt"
         export = data.script
 
     elif obj.type == "Font":
@@ -73,9 +93,7 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
         if obj.serialized_type.nodes:
             extension = ".json"
             export = json.dumps(
-                obj.read_typetree(),
-                indent=4,
-                ensure_ascii=False
+                obj.read_typetree(), indent=4, ensure_ascii=False
             ).encode("utf8")
         else:
             extension = ".bin"
@@ -89,12 +107,22 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
     if obj.type == "Sprite":
         data.image.save(f"{fp}.png")
 
-        return [obj.path_id, data.m_RD.texture.path_id, getattr(data.m_RD.alphaTexture, 'path_id', None)]
+        return [
+            obj.path_id,
+            data.m_RD.texture.path_id,
+            getattr(data.m_RD.alphaTexture, "path_id", None),
+        ]
 
     elif obj.type == "Texture2D":
-        if not os.path.exists(fp) and data.m_Width:
+        if data.m_Width:
             # textures can have size 0.....
-            data.image.save(f"{fp}.png")
+            if os.path.exists(f"{fp}.png"):
+                img = Image.open(f"{fp}.png")
+                if img.size != (data.m_Width, data.m_Height):
+                    data.image.save(f"{fp}_tex.png")
+                return [obj.path_id]
+            else:
+                data.image.save(f"{fp}.png")
 
     elif obj.type == "AudioClip":
         samples = data.samples
@@ -111,5 +139,5 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
     return [obj.path_id]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
