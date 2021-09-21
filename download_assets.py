@@ -9,8 +9,10 @@ import AssetBatchConverter
 ROOT = os.path.dirname(os.path.realpath(__file__))
 MASTER = os.path.join(ROOT, "master")
 ASSETS = os.path.join(ROOT, "assets")
+LOC = os.path.join(ROOT, "localization")
 os.makedirs(MASTER, exist_ok=True)
 os.makedirs(ASSETS, exist_ok=True)
+os.makedirs(LOC, exist_ok=True)
 
 def download(path):
     url = f"https://prd.evertaleserver.com/Prd2_3/{path}"
@@ -26,6 +28,9 @@ def download(path):
 def download_asset(path):
     return download(f"Android2018LTS/{path}")
 
+def download_localization(path):
+    return download(f"Localization/{path}")
+
 def load_json(fp):
     if os.path.exists(fp):
         with open(fp, "rt", encoding="utf8") as f:
@@ -40,6 +45,7 @@ def save_json(fp, obj):
 
 def main():
     update_master(MASTER)
+    update_localization(LOC)
     update_assets(ASSETS)
 
 def update_master(path):
@@ -61,8 +67,25 @@ def update_master(path):
     if update:
         save_json(hashs_fp, hashs_online)
 
+def update_localization(path):
+    hashs_fp = os.path.join(path, "FileHashes.json")
+    hashs_local = load_json(hashs_fp)
+    hashs_online = download_localization("FileHashes.json").json()
+    update = False
+    for name, hash in hashs_online.items():
+        fp = os.path.join(path, f"{name}.json")
+        if hashs_local.get(name,"") != hash or not os.path.exists(fp):
+            print(name)
+            data = download_localization(f"{name}").content
+            with open(fp, "wb") as f:
+                f.write(data)
+            update = True
+    
+    if update:
+        save_json(hashs_fp, hashs_online)
+
 def update_assets(path):
-    hashs_fp = os.path.join(path, "hashes.json")
+    hashs_fp = os.path.join(path, "filehashes.json")
     hashs_local = load_json(hashs_fp)
     hashs_online = download_asset("hashes.json").json()
     update = False

@@ -137,7 +137,3 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
                 with open(os.path.join(fp, f"{name}.wav"), "wb") as f:
                     f.write(clip_data)
     return [obj.path_id]
-
-
-if __name__ == "__main__":
-    main()

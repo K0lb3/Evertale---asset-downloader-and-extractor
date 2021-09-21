@@ -2,6 +2,8 @@
 __pycache__/
 assets/
 master/
+localization/
+raw/
 tests/
 */apk_monobehaviors/*
 # Distribution / packaging
