@@ -15,7 +15,7 @@ os.makedirs(ASSETS, exist_ok=True)
 os.makedirs(LOC, exist_ok=True)
 
 def download(path):
-    url = f"https://prd.evertaleserver.com/Prd2_3/{path}"
+    url = f"https://prd.evertaleserver.com/Prd2_4/{path}"
     headers = {
         "X-Unity-Version":	"2018.4.30f1",
         "User-Agent":	"Dalvik/2.1.0 (Linux; U; Android 5.1.1; ASUS_I001DA Build/LMY49I)",
