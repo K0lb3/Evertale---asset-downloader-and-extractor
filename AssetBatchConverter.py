@@ -39,7 +39,7 @@ def extract_assets(src):
     ):
         if fp.endswith(".prefab"):
             refs = crawl_obj(obj)
-            if any(x.type == ClassIDType.Texture2D for x in l.values()):
+            if any(x.type == ClassIDType.Texture2D for x in refs.values()):
                 print(f, key)
         else:
             export_obj(obj, os.path.join(DST, *fp.split("/")[IGNOR_DIR_COUNT:]), False)
