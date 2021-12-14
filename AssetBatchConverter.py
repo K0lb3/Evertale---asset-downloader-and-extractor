@@ -2,6 +2,8 @@ import os
 import UnityPy
 from PIL import Image
 import json
+from UnityPy.enums import ClassIDType
+from UnityPy.classes import Object, PPtr
 
 TYPES = [
     # Text (filish)
@@ -35,13 +37,16 @@ def extract_assets(src):
         if item[1].type.name in TYPES
         else 999,
     ):
-        if not fp.endswith(".prefab"):
-            continue
-        export_obj(obj, os.path.join(DST, *fp.split("/")[IGNOR_DIR_COUNT:]), False)
+        if fp.endswith(".prefab"):
+            refs = crawl_obj(obj)
+            if any(x.type == ClassIDType.Texture2D for x in l.values()):
+                print(f, key)
+        else:
+            export_obj(obj, os.path.join(DST, *fp.split("/")[IGNOR_DIR_COUNT:]), False)
 
 
 def export_obj(obj, fp: str, append_name: bool = False) -> list:
-    if obj.type not in TYPES:
+    if obj.type.name not in TYPES:
         return []
 
     data = obj.read()
@@ -53,7 +58,7 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
     os.makedirs(os.path.dirname(fp), exist_ok=True)
 
     # streamlineable types
-    if obj.type == "GameObject":
+    if obj.type.name == "GameObject":
         for component in data.get("m_Components", []):
             if component.type == "MonoBehaviour":
                 component = component.read()
@@ -62,12 +67,12 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
                     return export_obj(texture, f"{fp}_tex")
 
     export = None
-    if obj.type == "TextAsset":
+    if obj.type.name == "TextAsset":
         if not extension:
             extension = ".txt"
         export = data.script
 
-    elif obj.type == "Font":
+    elif obj.type.name == "Font":
         if data.m_FontData:
             extension = ".ttf"
             if data.m_FontData[0:4] == b"OTTO":
@@ -76,15 +81,15 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
         else:
             return [obj.path_id]
 
-    elif obj.type == "Mesh":
+    elif obj.type.name == "Mesh":
         extension = ".obf"
         export = data.export().encode("utf8")
 
-    elif obj.type == "Shader":
+    elif obj.type.name == "Shader":
         extension = ".txt"
         export = data.export().encode("utf8")
 
-    elif obj.type == "MonoBehaviour":
+    elif obj.type.name == "MonoBehaviour":
         # The data structure of MonoBehaviours is custom
         # and is stored as nodes
         # If this structure doesn't exist,
@@ -104,7 +109,7 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
             f.write(export)
 
     # non-streamlineable types
-    if obj.type == "Sprite":
+    if obj.type.name == "Sprite":
         data.image.save(f"{fp}.png")
 
         return [
@@ -113,7 +118,7 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
             getattr(data.m_RD.alphaTexture, "path_id", None),
         ]
 
-    elif obj.type == "Texture2D":
+    elif obj.type.name == "Texture2D":
         if data.m_Width:
             # textures can have size 0.....
             if os.path.exists(f"{fp}.png"):
@@ -124,7 +129,7 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
             else:
                 data.image.save(f"{fp}.png")
 
-    elif obj.type == "AudioClip":
+    elif obj.type.name == "AudioClip":
         samples = data.samples
         if len(samples) == 0:
             pass
@@ -137,3 +142,39 @@ def export_obj(obj, fp: str, append_name: bool = False) -> list:
                 with open(os.path.join(fp, f"{name}.wav"), "wb") as f:
                     f.write(clip_data)
     return [obj.path_id]
+
+def crawl_obj(obj: Object, ret: dict = None) -> dict:
+    """Crawls through the data struture of the object and returns a list of all the components."""
+    if not ret:
+        ret = {}
+
+    if isinstance(obj, PPtr):
+        try:
+            obj = obj.read()
+        except AttributeError:
+            return ret
+    else:
+        return ret
+    ret[obj.path_id] = obj
+
+    if obj.type == ClassIDType.MonoBehaviour:
+        data = obj.read_typetree()
+    else:
+        data = obj.__dict__.values()
+
+    for value in flatten(data):
+        if isinstance(value, (PPtr, Object)):
+            if value.path_id in ret:
+                continue
+            crawl_obj(value, ret)
+
+    return ret
+
+def flatten(l):
+    for el in list(l):
+        if isinstance(el, (list, tuple)):
+            yield from flatten(el)
+        elif isinstance(el, dict):
+            yield from flatten(el.values())
+        else:
+            yield el
